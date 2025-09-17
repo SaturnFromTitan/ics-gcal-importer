@@ -47,54 +47,56 @@ Limitations
   may adjust formatting.
 
 """
+
 import argparse
 import logging
-import os
+import pathlib
 import sys
-from dataclasses import dataclass
-from datetime import datetime, date
-from typing import Any, Dict, Iterable, List, Optional, Tuple
 import typing
+from collections.abc import Iterable
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
+from typing import Any
 
 from dateutil import tz
-from icalendar import Calendar, Event, vRecur
-
+from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from icalendar import Calendar, Event, vRecur
 
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
-TOKEN_FILE = "token.json"
-CREDENTIALS_FILE = "credentials.json"
+# FIXME: credentials and tokens shouldn't be saved as clear text on disk. use keychain instead
+TOKEN_FILE = pathlib.Path("token.json")
+CREDENTIALS_FILE = pathlib.Path("credentials.json")
 
-logger = logging.getLogger(__file__)
+logger = logging.getLogger(__name__)
 
 
 @dataclass
-class CliArgs:
-    ics_path: str
+class CliArgs:  # TODO: use typer
+    ics_path: pathlib.Path
     calendar: str
     dry_run: bool
     verbose: bool
 
 
-def load_service(credentials_file: str = CREDENTIALS_FILE, token_file: str = TOKEN_FILE):
-    creds: Optional[Credentials] = None
-    if os.path.exists(token_file):
-        creds = Credentials.from_authorized_user_file(token_file, SCOPES)
+def load_service() -> typing.Any:  # TODO: use proper type
+    creds: Credentials | None = None
+    if TOKEN_FILE.exists():
+        creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             try:
-                creds.refresh(Request())  # type: ignore[name-defined]
+                creds.refresh(Request())
             except Exception:
                 creds = None
         if not creds:
-            flow = InstalledAppFlow.from_client_secrets_file(credentials_file, SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, SCOPES)
             creds = flow.run_local_server(port=0)
         creds = typing.cast(Credentials, creds)
-        with open(token_file, "w") as f:
-            f.write(creds.to_json())
+        TOKEN_FILE.write_text(creds.to_json())
     return build("calendar", "v3", credentials=creds)
 
 
@@ -107,9 +109,11 @@ def resolve_calendar_id(service, calendar_selector: str) -> str:
     if calendar_selector == "primary":
         return "primary"
     page_token = None
-    matches: List[Tuple[str, str]] = []  # (id, summary)
+    matches: list[tuple[str, str]] = []  # (id, summary)
     while True:
-        resp = service.calendarList().list(pageToken=page_token, maxResults=250).execute()
+        resp = (
+            service.calendarList().list(pageToken=page_token, maxResults=250).execute()
+        )
         for item in resp.get("items", []):
             cal_id = item.get("id")
             summary = item.get("summary")
@@ -121,12 +125,17 @@ def resolve_calendar_id(service, calendar_selector: str) -> str:
     if not matches:
         raise SystemExit(f"No calendar found matching '{calendar_selector}'.")
     if len(matches) > 1:
-        logger.warning("Multiple calendars matched '%s'; using first: %s (%s)",
-                       calendar_selector, matches[0][1], matches[0][0])
+        logger.warning(
+            "Multiple calendars matched '%s'; using first: %s (%s)",
+            calendar_selector,
+            matches[0][1],
+            matches[0][0],
+        )
     return matches[0][0]
 
 
 # ---------------- ICS parsing helpers ----------------
+
 
 def _to_rfc3339(dt: datetime) -> str:
     if dt.tzinfo is None:
@@ -136,21 +145,21 @@ def _to_rfc3339(dt: datetime) -> str:
 
 
 def _is_all_day(ev: Event) -> bool:
-    start = ev.get('dtstart')
+    start = ev.get("dtstart")
     if not start:
         return False
     val = start.dt
     return isinstance(val, date) and not isinstance(val, datetime)
 
 
-def _event_time_payload(ev: Event) -> Dict[str, Any]:
+def _event_time_payload(ev: Event) -> dict[str, Any]:
     """Return {start: ..., end: ...} payload for Google Calendar events.
 
     For all-day events we use date-only fields; for timed events use dateTime.
     If ICS has no DTEND for all-day, infer DTEND = DTSTART + 1 day (RFC5545).
     """
-    start = ev.get('dtstart')
-    end = ev.get('dtend')
+    start = ev.get("dtstart")
+    end = ev.get("dtend")
 
     if _is_all_day(ev):
         start_date: date = start.dt
@@ -167,7 +176,7 @@ def _event_time_payload(ev: Event) -> Dict[str, Any]:
         start_dt: datetime = start.dt
         if end is None:
             # No DTEND; assume 1 hour duration
-            end_dt = start_dt + timedelta(hours=1)  # type: ignore[name-defined]
+            end_dt = start_dt + timedelta(hours=1)
         else:
             end_dt = end.dt
         return {
@@ -176,17 +185,17 @@ def _event_time_payload(ev: Event) -> Dict[str, Any]:
         }
 
 
-def ics_to_gcal_payloads(cal: Calendar) -> Iterable[Dict[str, Any]]:
+def ics_to_gcal_payloads(cal: Calendar) -> Iterable[dict[str, Any]]:
     for component in cal.walk():
         if component.name != "VEVENT":
             continue
         ev: Event = component
-        uid = str(ev.get('uid') or '')
-        summary = str(ev.get('summary') or '')
-        description = str(ev.get('description') or '')
-        location = str(ev.get('location') or '')
+        uid = str(ev.get("uid") or "")
+        summary = str(ev.get("summary") or "")
+        description = str(ev.get("description") or "")
+        location = str(ev.get("location") or "")
 
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "summary": summary or None,
             "description": description or None,
             "location": location or None,
@@ -195,7 +204,7 @@ def ics_to_gcal_payloads(cal: Calendar) -> Iterable[Dict[str, Any]]:
         payload.update(_event_time_payload(ev))
 
         # recurrence (RRULE) — pass through if present
-        rrule = ev.get('rrule')
+        rrule = ev.get("rrule")
         if isinstance(rrule, vRecur):
             # Convert to iCalendar RRULE line(s)
             parts = []
@@ -214,26 +223,31 @@ def ics_to_gcal_payloads(cal: Calendar) -> Iterable[Dict[str, Any]]:
 
 # ---------------- Google Calendar helpers ----------------
 
-def find_event_by_ics_uid(service, calendar_id: str, uid: str) -> Optional[Dict[str, Any]]:
+
+def find_event_by_ics_uid(service, calendar_id: str, uid: str) -> dict[str, Any] | None:
     if not uid:
         return None
     # Search via private extended property filter
     try:
-        resp = service.events().list(
-            calendarId=calendar_id,
-            privateExtendedProperty=f"ics_uid={uid}",
-            maxResults=1,
-            singleEvents=False,
-            showDeleted=False,
-        ).execute()
+        resp = (
+            service.events()
+            .list(
+                calendarId=calendar_id,
+                privateExtendedProperty=f"ics_uid={uid}",
+                maxResults=1,
+                singleEvents=False,
+                showDeleted=False,
+            )
+            .execute()
+        )
         items = resp.get("items", [])
         return items[0] if items else None
-    except HttpError as e:
-        logger.error("Error searching for existing event with UID %s: %s", uid, e)
+    except HttpError:
+        logger.exception("Error searching for existing event with UID %s", uid)
         return None
 
 
-def create_event(service, calendar_id: str, body: Dict[str, Any], dry_run: bool) -> str:
+def create_event(service, calendar_id: str, body: dict[str, Any], dry_run: bool) -> str:
     if dry_run:
         logger.info("[DRY-RUN] Would create event: %s", body.get("summary"))
         return "(dry-run-new-id)"
@@ -241,43 +255,57 @@ def create_event(service, calendar_id: str, body: Dict[str, Any], dry_run: bool)
     return created.get("id")
 
 
-def update_event(service, calendar_id: str, event_id: str, body: Dict[str, Any], dry_run: bool) -> str:
+def update_event(
+    service, calendar_id: str, event_id: str, body: dict[str, Any], dry_run: bool
+) -> str:
     if dry_run:
-        logger.info("[DRY-RUN] Would update event %s: %s", event_id, body.get("summary"))
+        logger.info(
+            "[DRY-RUN] Would update event %s: %s", event_id, body.get("summary")
+        )
         return event_id
-    updated = service.events().patch(calendarId=calendar_id, eventId=event_id, body=body).execute()
+    updated = (
+        service.events()
+        .patch(calendarId=calendar_id, eventId=event_id, body=body)
+        .execute()
+    )
     return updated.get("id")
 
 
 # ---------------- CLI ----------------
 
-def parse_args(argv: List[str]) -> CliArgs:
+
+def parse_args(argv: list[str]) -> CliArgs:
     p = argparse.ArgumentParser(description="Upload .ics events to Google Calendar")
     p.add_argument("ics_path", help="Path(s) to .ics file(s) to import")
-    p.add_argument("--calendar", default="primary",
-                   help="Calendar id or display name (default: primary)")
-    p.add_argument("--dry-run", action="store_true", help="Print actions without calling the API")
+    p.add_argument(
+        "--calendar",
+        default="primary",
+        help="Calendar id or display name (default: primary)",
+    )
+    p.add_argument(
+        "--dry-run", action="store_true", help="Print actions without calling the API"
+    )
     p.add_argument("-v", "--verbose", action="store_true", help="Verbose logging")
     ns = p.parse_args(argv)
     return CliArgs(
-        ics_path=ns.ics_path,
+        ics_path=pathlib.Path(ns.ics_path),
         calendar=ns.calendar,
         dry_run=ns.dry_run,
         verbose=ns.verbose,
     )
 
 
-def load_ics(path: str) -> Calendar:
-    with open(path, 'rb') as f:
-        data = f.read()
-    cal = Calendar.from_ical(data)
+def load_ics(path: pathlib.Path) -> Calendar:
+    cal = Calendar.from_ical(path.read_text())
     return cal
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
-                        format='%(levelname)s: %(message)s')
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(levelname)s: %(message)s",
+    )
 
     service = load_service()
 
@@ -288,9 +316,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     total_updated = 0
 
     ics_files = [
-        os.path.join(args.ics_path, f)
-        for f in os.listdir(args.ics_path)
-        if os.path.isfile(os.path.join(args.ics_path, f)) and f.lower().endswith('.ics')
+        f for f in args.ics_path.iterdir() if f.is_file() and f.suffix.lower() == ".ics"
     ]
     for ics_file_path in ics_files:
         logger.info("Processing %s", ics_file_path)
@@ -305,7 +331,9 @@ def main(argv: Optional[List[str]] = None) -> int:
             existing = find_event_by_ics_uid(service, calendar_id, uid or "")
 
             if existing:
-                update_event(service, calendar_id, existing["id"], payload, args.dry_run)
+                update_event(
+                    service, calendar_id, existing["id"], payload, args.dry_run
+                )
                 total_updated += 1
             else:
                 create_event(service, calendar_id, payload, args.dry_run)

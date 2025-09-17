@@ -1,0 +1,44 @@
+repos:
+  - repo: local
+    # Pre-built hooks for all these "local" checks are available as well. We rather
+    # define our own to ensure their version matches the one in pyproject.toml/uv.lock
+    hooks:
+      - id: uv-lock-check
+        name: uv-lock-check
+        entry: uv lock
+        language: system
+        pass_filenames: false
+        args: [ "--check" ]
+        files: |
+          (?x)^(
+            pyproject.toml|
+            uv.lock
+          )$
+      - id: ruff-format
+        name: ruff-format
+        language: system
+        entry: uv run --no-sync ruff format
+        types: [python]
+      - id: ruff-check
+        name: ruff-check
+        language: system
+        entry: uv run --no-sync ruff check
+        types: [python]
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: mypy
+        name: mypy
+        language: system
+        entry: uv run --no-sync mypy
+        types: [python]
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude_types: [diff, pdf]
+      - id: end-of-file-fixer
+        exclude_types: [diff, pdf]
+      - id: check-added-large-files
+      - id: check-toml
+      - id: check-json
+      - id: check-xml
+      - id: check-yaml

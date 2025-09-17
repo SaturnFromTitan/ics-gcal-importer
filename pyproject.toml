@@ -1,0 +1,138 @@
+[project]
+name = "ics-gcal-importer"
+version = "0.1.0"
+description = "CLI to import .ics files to google calendar."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "google-api-python-client>=2.182.0",
+    "google-auth-httplib2>=0.2.0",
+    "google-auth-oauthlib>=1.2.2",
+    "icalendar>=6.3.1",
+    "keyring>=25.6.0",
+    "python-dateutil>=2.9.0.post0",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.18.1",
+    "pre-commit>=4.3.0",
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.13.0",
+    "types-python-dateutil>=2.9.0.20250822",
+]
+
+[build-system]
+requires = ["uv_build>=0.8.13,<0.9.0"]
+build-backend = "uv_build"
+
+[project.scripts]
+import-ics = "ics_gcal_importer.main:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = [
+    "--strict-markers",
+]
+
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+sort = "Miss"
+skip_covered = true
+skip_empty = true
+exclude_also = [
+    # type check imports don't need to be covered
+    "if (typing\\.)?TYPE_CHECKING:",
+
+    # defensive assertion code doesn't need to be covered
+    "raise NotImplementedError",
+
+    # script code doesn't run in production so it doesn't need to be covered
+    "if __name__ == .__main__.:",
+
+    # abstract methods don't need to be covered
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.mypy]
+python_version = "3.12"
+allow_redefinition = false
+check_untyped_defs = true
+disallow_untyped_decorators = true
+disallow_any_explicit = false
+disallow_any_generics = false
+disallow_untyped_calls = true
+ignore_errors = false
+ignore_missing_imports = true
+implicit_reexport = false
+strict_optional = true
+strict_equality = true
+show_traceback = true
+no_implicit_optional = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+warn_unreachable = true
+warn_no_return = true
+exclude = [
+  "build",
+  ".venv",
+]
+
+[tool.ruff]
+# https://docs.astral.sh/ruff/configuration/
+target-version = "py312"
+output-format = "full"
+
+[tool.ruff.lint]
+# list of all rules: https://docs.astral.sh/ruff/rules/
+select = ["ALL"]
+ignore = [
+  "ANN",  # flake8-annotations: we're fine with what mypy gives us
+  "ARG",  # flake8-unused-arguments: often yields false-negatives when used with inheritence
+  "BLE001",  # blind-except: catching `Exception` is fine as long as you don't `pass`
+  "COM812",  # missing-trailing-comma: trailing commas are managed by the formatter
+  "D",  # pydocstyle: we don't care too much about docstrings
+  "DJ",  # flake8-django: we don't use Django
+  "E501", # line-too-long: let ruff format handle line length (sometimes it produces lines longer than the limit), and ruff shouldn't complain about it
+  "EM",  # flake8-errmsg: raw strings in exceptions are fine
+  "F722",  # forward-annotation-syntax-error: https://github.com/PyCQA/pyflakes/issues/542
+  "FBT001",  # boolean-type-hint-positional-argument: FBT003 is sufficient
+  "FBT002",  # boolean-default-value-positional-argument: FBT003 is sufficient
+  "FIX",  # flake8-fixmes: we use todos & fixmes for follow-up and long-term issues
+  "ISC001",  # single-line-implicit-string-concatenation: https://github.com/astral-sh/ruff/issues/8272
+  "N805",  # invalid-first-argument-name-for-method: incompatible with pydantic validations
+  "PD901",  # pandas-df-variable-name: within a function where there's only one dataframe, it's convenient to call it df
+  "PTH123",  # pathlib-open: It's ok to use open(...) instead of Pathlib(...).open()
+  "RET504",  # unnecessary-assign: unnecessary assigns are sometimes helpful for debuggers
+  "RET505",  # superfluous-else-return: sometimes the `else` inproves readability
+  "RET506",  # superfluous-else-raise: sometimes the `else` inproves readability
+  "RET507",  # superfluous-else-continue: sometimes the `else` inproves readability
+  "RET508",  # superfluous-else-break: sometimes the `else` inproves readability
+  "S104",  # hardcoded-bind-all-interfaces: we allow binding to 0.0.0.0
+  "SIM108",  # if-else-block-instead-of-if-exp: ternary operator isn't always preferred
+  "TCH",  # flake8-type-checking: can conflict with fastapi's typing magic
+  "TD",  # flake8-todos: we don't want to formalise todos
+  "TRY002",  # raise-vanilla-class: in services, we're fine with raising broad exceptions
+  "TRY003",  # raise-vanilla-args: we're ok with long strings in exceptions
+  "TRY004",  # type-check-without-type-error: too many false-negatives
+  "TRY300",  # try-consider-else: else statements can be harder to read
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [
+  "S101",  # assert: asserts are allowed in tests
+  "PLR2004",  # magic-value-comparison: magic values are ok in tests
+  "PLR0913",  # too-many-arguments: tests can use as many arguments (i.e. fixtures) as they like
+  "SLF001",  # private-member-access: private methods can be used in tests
+]
+"src/profile_pdf/models.py" = [
+  "ERA001" # commented-out-code: commented projects should be kept, they might be included for dedicated projects
+]
+
+[tool.ruff.lint.pylint]
+max-args = 8

@@ -33,10 +33,9 @@ set shell := ["bash", "-c"]
 @lint: install
   uv run pre-commit run --all-files
 
-# run python tests in Docker container (test stage)
+# run python tests
 @test *ARGS:
-  docker build --target test -t pdf-generator-test .
-  docker run --rm pdf-generator-test uv run pytest {{ ARGS }}
+  uv run pytest {{ ARGS }}
 
 # run all CI checks locally
 @all: clean lint test

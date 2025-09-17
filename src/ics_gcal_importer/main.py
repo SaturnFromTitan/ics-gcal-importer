@@ -82,21 +82,21 @@ class CliArgs:  # TODO: use typer
     verbose: bool
 
 
-def load_service() -> typing.Any:  # TODO: use proper type
+def load_service() -> typing.Any:
     creds: Credentials | None = None
     if TOKEN_FILE.exists():
-        creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
+        creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)  # type: ignore[no-untyped-call]
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             try:
-                creds.refresh(Request())
+                creds.refresh(Request())  # type: ignore[no-untyped-call]
             except Exception:
                 creds = None
         if not creds:
             flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, SCOPES)
             creds = flow.run_local_server(port=0)
         creds = typing.cast(Credentials, creds)
-        TOKEN_FILE.write_text(creds.to_json())
+        TOKEN_FILE.write_text(creds.to_json())  # type: ignore[no-untyped-call]
     return build("calendar", "v3", credentials=creds)
 
 

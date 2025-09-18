@@ -12,14 +12,14 @@ app = typer.Typer(help="Upload .ics events to Google Calendar")
 @app.command()
 def import_ics(
     ics_directory: pathlib.Path = typer.Argument(
-        ..., help="Path to the directory containing .ics files"
+        default="~/Downloads", help="Path to the directory containing .ics files"
     ),
 ) -> None:
     """Upload events from all found .ics files to the primary Google Calendar."""
 
     client = gcal_client.GCalClient()
 
-    for ics_path in ics_directory.iterdir():
+    for ics_path in ics_directory.expanduser().iterdir():
         if not ics_path.is_file() or ics_path.suffix.lower() != ".ics":
             continue
         rich.print(f"Processing {ics_path}")

@@ -1,11 +1,8 @@
-import logging
 from collections.abc import Iterable
 from datetime import date, datetime, timedelta
 from typing import Any
 
 from icalendar import Calendar, Event, vRecur
-
-logger = logging.getLogger(__name__)
 
 
 def extract_gcal_payloads(cal: Calendar) -> Iterable[tuple[dict[str, Any], str]]:

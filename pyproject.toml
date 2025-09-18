@@ -10,6 +10,7 @@ dependencies = [
     "google-auth-oauthlib>=1.2.2",
     "icalendar>=6.3.1",
     "keyring>=25.6.0",
+    "rich>=14.1.0",
     "typer>=0.17.4",
 ]
 

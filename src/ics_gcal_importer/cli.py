@@ -1,12 +1,10 @@
-import logging
 import pathlib
 
+import rich
 import typer
 from icalendar import Calendar
 
 from ics_gcal_importer import gcal_client, parse_ics
-
-logger = logging.getLogger(__name__)
 
 app = typer.Typer(help="Upload .ics events to Google Calendar")
 
@@ -21,22 +19,21 @@ def import_ics(
 
     client = gcal_client.GCalClient()
 
-    total_created = 0
-    total_updated = 0
-
     for ics_path in ics_directory.iterdir():
         if not ics_path.is_file() or ics_path.suffix.lower() != ".ics":
             continue
-        logger.info("Processing %s", ics_path)
+        rich.print(f"Processing {ics_path}")
+        num_created = 0
+        num_updated = 0
 
         # parse
         cal = Calendar.from_ical(ics_path.read_text())
         for gcal_payload, uid in parse_ics.extract_gcal_payloads(cal):
             if existing := client.find_event_by_ics_uid(uid):
                 client.update_event(existing["id"], gcal_payload)
-                total_updated += 1
+                num_updated += 1
             else:
                 client.create_event(gcal_payload)
-                total_created += 1
+                num_created += 1
 
-    logger.info("Done. created=%d updated=%d", total_created, total_updated)
+        rich.print(f"Done. created={num_created} updated={num_updated}")

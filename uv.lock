@@ -378,6 +378,7 @@ dependencies = [
     { name = "google-auth-oauthlib" },
     { name = "icalendar" },
     { name = "keyring" },
+    { name = "rich" },
     { name = "typer" },
 ]
 
@@ -397,6 +398,7 @@ requires-dist = [
     { name = "google-auth-oauthlib", specifier = ">=1.2.2" },
     { name = "icalendar", specifier = ">=6.3.1" },
     { name = "keyring", specifier = ">=25.6.0" },
+    { name = "rich", specifier = ">=14.1.0" },
     { name = "typer", specifier = ">=0.17.4" },
 ]
 

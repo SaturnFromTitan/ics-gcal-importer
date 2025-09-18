@@ -39,3 +39,7 @@ set shell := ["bash", "-c"]
 
 # run all CI checks locally
 @all: clean lint test
+
+# build the CLI as a wheel file
+@build: clean
+  uv build --wheel

@@ -14,7 +14,7 @@ jobs:
   version-check:
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.version.outputs.version }}
+      version: ${{ steps.check.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,8 +25,30 @@ jobs:
         uses: astral-sh/setup-uv@v6
 
       - name: Version check
-        id: version
-        uses: ./.github/actions/version-check
+        id: check
+        shell: bash
+        run: |
+          # Get current version using `uv version`
+          CURRENT_VERSION=$(uv version 2>/dev/null | cut -d ' ' -f2-)
+          echo "current version: $CURRENT_VERSION"
+
+          # Get latest tag version
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
+          LATEST_VERSION=${LATEST_TAG#v}
+          echo "latest version: $LATEST_VERSION"
+
+          # Compare versions
+          if [ "$CURRENT_VERSION" = "$LATEST_VERSION" ]; then
+            echo "::error::Version $CURRENT_VERSION already exists. Please increment the application version in pyproject.toml"
+            exit 1
+          fi
+
+          if [ "$(printf '%s\n' "$CURRENT_VERSION" "$LATEST_VERSION" | sort -V | head -n1)" = "$CURRENT_VERSION" ]; then
+            echo "::error::Version $CURRENT_VERSION is lower than the latest version $LATEST_VERSION. Please increment the application version in pyproject.toml"
+            exit 1
+          fi
+
+          echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
 
   lint:
     runs-on: ubuntu-latest

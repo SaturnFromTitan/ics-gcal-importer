@@ -1,13 +1,11 @@
-name: PR checks
+name: Create Release
 
 on:
-  pull_request:
-
-permissions:
-  contents: read
+  push:
+    branches: [ main ]
 
 jobs:
-  version-check:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,21 +16,9 @@ jobs:
       - name: Set up uv (package manager)
         uses: astral-sh/setup-uv@v6
 
-      - name: Version check
-        id: version
+      - name: Check version
+        id: version-check
         uses: ./.github/actions/version-check
-
-  ci:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        task: [lint, test]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up uv (package manager)
-        uses: astral-sh/setup-uv@v6
 
       - name: Set up just (command runner)
         uses: extractions/setup-just@v3
@@ -42,5 +28,20 @@ jobs:
       - name: Install Python dependencies
         run: uv sync --locked
 
-      - name: ${{ matrix.task }}
-        run: just ${{ matrix.task }}
+      - name: lint
+        run: just lint
+
+      - name: Lint
+        run: just test
+
+      - name: Build extension
+        run: just build
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version-check.outputs.version }}
+          name: Release v${{ steps.version-check.outputs.version }}
+          files: dist/*.whl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

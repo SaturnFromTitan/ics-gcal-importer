@@ -19,9 +19,6 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
 
       - name: Set up uv (package manager)
         uses: astral-sh/setup-uv@v6

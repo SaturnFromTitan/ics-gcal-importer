@@ -29,7 +29,7 @@ requires = ["uv_build>=0.8.13,<0.9.0"]
 build-backend = "uv_build"
 
 [project.scripts]
-import-ics = "ics_gcal_importer.main:app"
+import-ics = "ics_gcal_importer.cli:app"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

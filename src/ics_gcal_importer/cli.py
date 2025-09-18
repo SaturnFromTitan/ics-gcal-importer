@@ -19,7 +19,7 @@ def import_ics(
 
     client = gcal_client.GCalClient()
 
-    for ics_path in ics_directory.iterdir():
+    for ics_path in ics_directory.expanduser().iterdir():
         if not ics_path.is_file() or ics_path.suffix.lower() != ".ics":
             continue
         rich.print(f"Processing {ics_path}")

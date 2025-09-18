@@ -34,7 +34,7 @@ set shell := ["bash", "-c"]
   uv run pre-commit run --all-files
 
 # run python tests
-@test *ARGS:
+@test *ARGS: install
   uv run pytest {{ ARGS }}
 
 # run all CI checks locally

@@ -5,11 +5,18 @@ on:
     branches: [ main ]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  ci-checks:
+    uses: ./.github/workflows/partial-ci-checks.yml
+    secrets: inherit
+
   release:
     runs-on: ubuntu-latest
+    needs: ci-checks
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -19,32 +26,14 @@ jobs:
       - name: Set up uv (package manager)
         uses: astral-sh/setup-uv@v6
 
-      - name: Check version
-        id: version-check
-        uses: ./.github/actions/version-check
-
-      - name: Set up just (command runner)
-        uses: extractions/setup-just@v3
-
-      # `just install` would also be run when before running `just lint/test` in the next step
-      # but having it as a separate step yields a nicer output in the GitHub Actions UI
-      - name: Install Python dependencies
-        run: uv sync --locked
-
-      - name: Lint
-        run: just lint
-
-      - name: Test
-        run: just test
-
       - name: Build extension
         run: just build
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version-check.outputs.version }}
-          name: Release v${{ steps.version-check.outputs.version }}
+          tag_name: v${{ needs.ci-checks.outputs.version }}
+          name: Release v${{ needs.ci-checks.outputs.version }}
           files: dist/*.whl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

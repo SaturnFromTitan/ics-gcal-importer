@@ -67,10 +67,7 @@ class GCalClient:
             logger.exception("Error searching for existing event with UID %s", uid)
             return None
 
-    def create_event(self, body: dict[str, Any], dry_run: bool) -> str:
-        if dry_run:
-            logger.info("[DRY-RUN] Would create event: %s", body.get("summary"))
-            return "(dry-run-new-id)"
+    def create_event(self, body: dict[str, Any]) -> str:
         created = (
             self.service.events()
             .insert(calendarId=self._CALENDAR_ID, body=body)
@@ -78,12 +75,7 @@ class GCalClient:
         )
         return created.get("id")
 
-    def update_event(self, event_id: str, body: dict[str, Any], dry_run: bool) -> str:
-        if dry_run:
-            logger.info(
-                "[DRY-RUN] Would update event %s: %s", event_id, body.get("summary")
-            )
-            return event_id
+    def update_event(self, event_id: str, body: dict[str, Any]) -> str:
         updated = (
             self.service.events()
             .patch(calendarId=self._CALENDAR_ID, eventId=event_id, body=body)

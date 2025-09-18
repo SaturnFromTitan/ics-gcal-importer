@@ -134,6 +134,9 @@ ignore = [
   "ERA001" # commented-out-code: commented projects should be kept, they might be included for dedicated projects
 ]
 
+[tool.ruff.lint.isort]
+known-first-party = ["ics_gcal_importer"]
+
 [tool.ruff.lint.pylint]
 max-args = 8
 

@@ -7,45 +7,6 @@ permissions:
   contents: read
 
 jobs:
-  version-check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-
-      - name: Set up uv (package manager)
-        uses: astral-sh/setup-uv@v6
-
-      - name: Version check
-        id: version
-        uses: ./.github/actions/version-check
-
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up uv (package manager)
-        uses: astral-sh/setup-uv@v6
-
-      - name: Install Python dependencies
-        run: uv sync --locked
-
-      - name: Lint
-        run: uv run pre-commit run --all-files
-
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up uv (package manager)
-        uses: astral-sh/setup-uv@v6
-
-      - name: Install Python dependencies
-        run: uv sync --locked
-
-      - name: Test
-        run: uv run pytest
+  ci:
+    uses: ./.github/workflows/partial-ci-checks.yml
+    secrets: inherit

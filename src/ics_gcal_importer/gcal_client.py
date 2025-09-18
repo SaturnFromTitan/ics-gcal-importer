@@ -1,8 +1,10 @@
+import json
 import logging
-import pathlib
+import textwrap
 import typing
 from typing import Any, ClassVar
 
+import keyring
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -11,38 +13,64 @@ from googleapiclient.errors import HttpError
 
 logger = logging.getLogger(__name__)
 
+KEYRING_SERVICE_NAME = "gcal-ics-importer"
+KEYRING_USER_NAME = "oauth-token"
+
 
 class GCalClient:
     """Thin wrapper around Google Calendar API client tailored to the usecase of this CLI."""
 
     _SCOPES: ClassVar[list[str]] = ["https://www.googleapis.com/auth/calendar"]
     _CALENDAR_ID: ClassVar[str] = "primary"
-    # FIXME: credentials and tokens shouldn't be saved as clear text on disk. use keychain instead
-    _TOKEN_FILE: ClassVar[pathlib.Path] = pathlib.Path("token.json")
-    _CREDENTIALS_FILE: ClassVar[pathlib.Path] = pathlib.Path("credentials.json")
 
     def __init__(self) -> None:
         self.service = self._load_service()
 
     def _load_service(self) -> Any:
-        creds: Credentials | None = None
-        if self._TOKEN_FILE.exists():
-            creds = Credentials.from_authorized_user_file(  # type: ignore[no-untyped-call]
-                self._TOKEN_FILE, self._SCOPES
-            )
+        creds = None
+
+        # 1) get credentials from keyring
+        token_json = keyring.get_password(KEYRING_SERVICE_NAME, KEYRING_USER_NAME)
+        if token_json:
+            try:
+                token_dict = json.loads(token_json)
+                creds = Credentials.from_authorized_user_info(token_dict, self._SCOPES)  # type: ignore[no-untyped-call]
+            except json.JSONDecodeError:
+                creds = None
+
+        # 2) Run OAuth flow
         if not creds or not creds.valid:
+            # 2.1) credentials can be refreshed via refresh_token
             if creds and creds.expired and creds.refresh_token:
                 try:
                     creds.refresh(Request())  # type: ignore[no-untyped-call]
                 except Exception:
                     creds = None
+
+            # 2.2) credentials have to be acquired via the initial credentials
             if not creds:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    self._CREDENTIALS_FILE, self._SCOPES
-                )
+                client_config_json = ""
+                while not client_config_json:
+                    client_config_json = input(
+                        textwrap.dedent(
+                            """
+                            Please paste the content of the Google client config, i.e. the credentials file downloaded from the Google Cloud Console after creating your OAuth 2.0-Client-ID
+                            (It's typically called `client_secret_<some_id>.apps.googleusercontent.com.json`)
+                            """.strip("\n")
+                        )
+                    )
+                client_config = json.loads(client_config_json)
+                flow = InstalledAppFlow.from_client_config(client_config, self._SCOPES)
                 creds = flow.run_local_server(port=0)
+
+            # update credentials in keychain
             creds = typing.cast(Credentials, creds)
-            self._TOKEN_FILE.write_text(creds.to_json())  # type: ignore[no-untyped-call]
+            keyring.set_password(
+                KEYRING_SERVICE_NAME,
+                KEYRING_USER_NAME,
+                creds.to_json(),  # type: ignore[no-untyped-call]
+            )
+
         return build("calendar", "v3", credentials=creds)
 
     # ---------------- Calendar helpers ----------------

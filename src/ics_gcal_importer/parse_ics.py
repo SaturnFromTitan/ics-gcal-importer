@@ -3,7 +3,6 @@ from collections.abc import Iterable
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from dateutil import tz
 from icalendar import Calendar, Event, vRecur
 
 logger = logging.getLogger(__name__)
@@ -48,7 +47,8 @@ def extract_gcal_payloads(cal: Calendar) -> Iterable[tuple[dict[str, Any], str]]
 def _to_rfc3339(dt: datetime) -> str:
     if dt.tzinfo is None:
         # Assume local timezone if naive; convert to UTC offset
-        dt = dt.replace(tzinfo=tz.tzlocal())
+        local_tz = datetime.now().astimezone().tzinfo
+        dt = dt.replace(tzinfo=local_tz)
     return dt.isoformat()
 
 

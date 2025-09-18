@@ -12,7 +12,7 @@ app = typer.Typer(help="Upload .ics events to Google Calendar")
 @app.command()
 def import_ics(
     ics_directory: pathlib.Path = typer.Argument(
-        ..., help="Path to the directory containing .ics files"
+        default="~/Downloads", help="Path to the directory containing .ics files"
     ),
 ) -> None:
     """Upload events from all found .ics files to the primary Google Calendar."""

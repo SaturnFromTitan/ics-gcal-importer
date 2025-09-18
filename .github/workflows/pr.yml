@@ -22,25 +22,30 @@ jobs:
         id: version
         uses: ./.github/actions/version-check
 
-  ci:
+  lint:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        task: [lint, test]
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up uv (package manager)
         uses: astral-sh/setup-uv@v6
 
-      - name: Set up just (command runner)
-        uses: extractions/setup-just@v3
-
-      # `just install` would also be run when before running `just lint/test` in the next step
-      # but having it as a separate step yields a nicer output in the GitHub Actions UI
       - name: Install Python dependencies
         run: uv sync --locked
 
-      - name: ${{ matrix.task }}
-        run: just ${{ matrix.task }}
+      - name: Lint
+        run: uv run pre-commit run --all-files
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv (package manager)
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install Python dependencies
+        run: uv sync --locked
+
+      - name: Test
+        run: uv run pytest

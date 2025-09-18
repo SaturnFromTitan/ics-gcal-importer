@@ -1,3 +1,4 @@
+import zoneinfo
 from collections.abc import Iterable
 from datetime import date, datetime, timedelta
 from typing import Any
@@ -6,10 +7,10 @@ from icalendar import Calendar, Event, vRecur
 
 
 def extract_gcal_payloads(cal: Calendar) -> Iterable[tuple[dict[str, Any], str]]:
-    for component in cal.walk():
-        if component.name != "VEVENT":
-            continue
-        ev: Event = component
+    # Extract timezone information from VTIMEZONE components
+    ics_timezone = _extract_timezone(cal)
+
+    for ev in cal.events:
         uid = str(ev.get("uid") or "")
         summary = str(ev.get("summary") or "")
         description = str(ev.get("description") or "")
@@ -21,7 +22,7 @@ def extract_gcal_payloads(cal: Calendar) -> Iterable[tuple[dict[str, Any], str]]
             "location": location or None,
             "extendedProperties": {"private": {"ics_uid": uid}} if uid else None,
         }
-        payload.update(_event_time_payload(ev))
+        payload.update(_event_time_payload(ev, ics_timezone))
 
         # recurrence (RRULE) — pass through if present
         rrule = ev.get("rrule")
@@ -41,12 +42,29 @@ def extract_gcal_payloads(cal: Calendar) -> Iterable[tuple[dict[str, Any], str]]
         yield payload, uid
 
 
-def _to_rfc3339(dt: datetime) -> str:
-    if dt.tzinfo is None:
-        # Assume local timezone if naive; convert to UTC offset
+def _extract_timezone(cal: Calendar) -> zoneinfo.ZoneInfo | None:
+    """Extract timezone information from VTIMEZONE components."""
+    timezones = set()
+    for component in cal.timezones:
+        tzid = str(component.get("tzid", ""))
+        if tzid:
+            timezones.add(zoneinfo.ZoneInfo(tzid))
+    if not timezones:
+        return None
+    if len(timezones) > 1:
+        raise NotImplementedError("Multiple VTIMEZONE components aren't supported yet")
+    return next(iter(timezones))
+
+
+def _ensure_timezone(dt: datetime, ics_timezone: zoneinfo.ZoneInfo | None) -> datetime:
+    if dt.tzinfo:
+        return dt
+    elif ics_timezone:
+        return dt.replace(tzinfo=ics_timezone)
+    else:
+        # Fallback to local timezone if no VTIMEZONE info available
         local_tz = datetime.now().astimezone().tzinfo
-        dt = dt.replace(tzinfo=local_tz)
-    return dt.isoformat()
+        return dt.replace(tzinfo=local_tz)
 
 
 def _is_all_day(ev: Event) -> bool:
@@ -57,7 +75,9 @@ def _is_all_day(ev: Event) -> bool:
     return isinstance(val, date) and not isinstance(val, datetime)
 
 
-def _event_time_payload(ev: Event) -> dict[str, Any]:
+def _event_time_payload(
+    ev: Event, ics_timezone: zoneinfo.ZoneInfo | None
+) -> dict[str, Any]:
     """Return {start: ..., end: ...} payload for Google Calendar events.
 
     For all-day events we use date-only fields; for timed events use dateTime.
@@ -85,6 +105,6 @@ def _event_time_payload(ev: Event) -> dict[str, Any]:
         else:
             end_dt = end.dt
         return {
-            "start": {"dateTime": _to_rfc3339(start_dt)},
-            "end": {"dateTime": _to_rfc3339(end_dt)},
+            "start": {"dateTime": _ensure_timezone(start_dt, ics_timezone).isoformat()},
+            "end": {"dateTime": _ensure_timezone(end_dt, ics_timezone).isoformat()},
         }

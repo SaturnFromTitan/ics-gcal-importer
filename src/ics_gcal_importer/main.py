@@ -1,63 +1,11 @@
-"""
-Google Calendar ICS Importer (CLI)
-
-A small, self-contained Python CLI to upload events from .ics files into your
-Google Calendar. Designed to be:
-  • idempotent (won't duplicate existing imports)
-  • safe (supports --dry-run)
-  • flexible (map to any of your calendars by id or display name)
-  • simple (no server; installed-app OAuth flow)
-
-Key ideas
----------
-- We parse the ICS (RFC5545) using the `icalendar` package.
-- We store the ICS event UID into the event's private extended properties on
-  Google Calendar (`extendedProperties.private.ics_uid`).
-  That lets us detect/update events on re-imports without creating duplicates.
-- Recurring rules (RRULE) present in the ICS are forwarded to Google via the
-  `recurrence` field (which also expects RFC5545). Instances/exceptions beyond
-  that are not expanded client-side for simplicity.
-- Times are converted to RFC3339; if an event is "all-day" we use date-only
-  fields.
-
-Usage
------
-    python gcal_ics_importer.py path/to/file.ics \
-        --calendar "primary" \
-        --update-existing \
-        --dry-run
-
-Setup
------
-1) Create OAuth 2.0 Client (Desktop) in Google Cloud Console and download
-   the JSON as `credentials.json` (same folder as this script by default).
-   Scopes needed: https://www.googleapis.com/auth/calendar
-2) Install deps:
-      pip install --upgrade google-api-python-client google-auth-httplib2 \
-          google-auth-oauthlib icalendar python-dateutil
-3) First run will prompt you to authorize in the browser and will store a
-   `token.json` for reuse.
-
-Limitations
------------
-- This tool does not attempt to perfectly mirror every ICS edge case (e.g.,
-  complex EXDATE/EXRULE combinations or VTIMEZONE with non-IANA tz ids). It
-  forwards RRULE unmodified when present and relies on Google to interpret it.
-- Attendee RSVP states from ICS are passed through when available, but Google
-  may adjust formatting.
-
-"""
-
-import argparse
 import logging
 import pathlib
-import sys
 import typing
 from collections.abc import Iterable
-from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
 
+import typer
 from dateutil import tz
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -73,13 +21,8 @@ CREDENTIALS_FILE = pathlib.Path("credentials.json")
 
 logger = logging.getLogger(__name__)
 
-
-@dataclass
-class CliArgs:  # TODO: use typer
-    ics_path: pathlib.Path
-    calendar: str
-    dry_run: bool
-    verbose: bool
+# Create Typer app
+app = typer.Typer(help="Upload .ics events to Google Calendar")
 
 
 def load_service() -> typing.Any:
@@ -272,55 +215,35 @@ def update_event(
 
 
 # ---------------- CLI ----------------
-
-
-def parse_args(argv: list[str]) -> CliArgs:
-    p = argparse.ArgumentParser(description="Upload .ics events to Google Calendar")
-    p.add_argument("ics_path", help="Path(s) to .ics file(s) to import")
-    p.add_argument(
-        "--calendar",
-        default="primary",
-        help="Calendar id or display name (default: primary)",
-    )
-    p.add_argument(
-        "--dry-run", action="store_true", help="Print actions without calling the API"
-    )
-    p.add_argument("-v", "--verbose", action="store_true", help="Verbose logging")
-    ns = p.parse_args(argv)
-    return CliArgs(
-        ics_path=pathlib.Path(ns.ics_path),
-        calendar=ns.calendar,
-        dry_run=ns.dry_run,
-        verbose=ns.verbose,
-    )
-
-
-def load_ics(path: pathlib.Path) -> Calendar:
-    cal = Calendar.from_ical(path.read_text())
-    return cal
-
-
-def main(argv: list[str] | None = None) -> int:
-    args = parse_args(argv or sys.argv[1:])
+@app.command()
+def main(
+    ics_path: pathlib.Path = typer.Argument(..., help="Path to .ics file(s) to import"),
+    calendar: str = typer.Option(default="primary", help="Calendar id or display name"),
+    dry_run: bool = typer.Option(
+        default=False, help="Print actions without calling the API"
+    ),
+    verbose: bool = typer.Option(default=False, help="Verbose logging"),
+) -> None:
+    """Upload .ics events to Google Calendar."""
     logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
+        level=logging.DEBUG if verbose else logging.INFO,
         format="%(levelname)s: %(message)s",
     )
 
     service = load_service()
 
-    calendar_id = resolve_calendar_id(service, args.calendar)
+    calendar_id = resolve_calendar_id(service, calendar)
     logger.info("Using calendar: %s", calendar_id)
 
     total_created = 0
     total_updated = 0
 
     ics_files = [
-        f for f in args.ics_path.iterdir() if f.is_file() and f.suffix.lower() == ".ics"
+        f for f in ics_path.iterdir() if f.is_file() and f.suffix.lower() == ".ics"
     ]
     for ics_file_path in ics_files:
         logger.info("Processing %s", ics_file_path)
-        cal = load_ics(ics_file_path)
+        cal = Calendar.from_ical(ics_file_path.read_text())
 
         for payload in ics_to_gcal_payloads(cal):
             uid = None
@@ -331,13 +254,10 @@ def main(argv: list[str] | None = None) -> int:
             existing = find_event_by_ics_uid(service, calendar_id, uid or "")
 
             if existing:
-                update_event(
-                    service, calendar_id, existing["id"], payload, args.dry_run
-                )
+                update_event(service, calendar_id, existing["id"], payload, dry_run)
                 total_updated += 1
             else:
-                create_event(service, calendar_id, payload, args.dry_run)
+                create_event(service, calendar_id, payload, dry_run)
                 total_created += 1
 
     logger.info("Done. created=%d updated=%d", total_created, total_updated)
-    return 0

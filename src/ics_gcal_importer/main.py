@@ -222,13 +222,9 @@ def main(
     dry_run: bool = typer.Option(
         default=False, help="Print actions without calling the API"
     ),
-    verbose: bool = typer.Option(default=False, help="Verbose logging"),
 ) -> None:
     """Upload .ics events to Google Calendar."""
-    logging.basicConfig(
-        level=logging.DEBUG if verbose else logging.INFO,
-        format="%(levelname)s: %(message)s",
-    )
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
     service = load_service()
 

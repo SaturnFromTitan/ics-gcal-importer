@@ -11,6 +11,7 @@ dependencies = [
     "icalendar>=6.3.1",
     "keyring>=25.6.0",
     "python-dateutil>=2.9.0.post0",
+    "typer>=0.17.4",
 ]
 
 [dependency-groups]
@@ -28,7 +29,7 @@ requires = ["uv_build>=0.8.13,<0.9.0"]
 build-backend = "uv_build"
 
 [project.scripts]
-import-ics = "ics_gcal_importer.main:main"
+import-ics = "ics_gcal_importer.main:app"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -106,7 +107,6 @@ ignore = [
   "FIX",  # flake8-fixmes: we use todos & fixmes for follow-up and long-term issues
   "ISC001",  # single-line-implicit-string-concatenation: https://github.com/astral-sh/ruff/issues/8272
   "N805",  # invalid-first-argument-name-for-method: incompatible with pydantic validations
-  "PD901",  # pandas-df-variable-name: within a function where there's only one dataframe, it's convenient to call it df
   "PTH123",  # pathlib-open: It's ok to use open(...) instead of Pathlib(...).open()
   "RET504",  # unnecessary-assign: unnecessary assigns are sometimes helpful for debuggers
   "RET505",  # superfluous-else-return: sometimes the `else` inproves readability
@@ -136,3 +136,12 @@ ignore = [
 
 [tool.ruff.lint.pylint]
 max-args = 8
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+  "fastapi.Depends",
+  "fastapi.params.Depends",
+  "fastapi.Query",
+  "fastapi.params.Query",
+  "typer.Argument",
+]

@@ -27,7 +27,7 @@ jobs:
         uses: astral-sh/setup-uv@v6
 
       - name: Build extension
-        run: just build
+        run: uv build --wheel
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

@@ -370,7 +370,7 @@ wheels = [
 
 [[package]]
 name = "ics-gcal-importer"
-version = "1.0.3"
+version = "1.0.4"
 source = { editable = "." }
 dependencies = [
     { name = "google-api-python-client" },

@@ -1,6 +1,6 @@
 [project]
 name = "ics-gcal-importer"
-version = "1.0.3"
+version = "1.0.4"
 description = "CLI to import .ics files to google calendar."
 readme = "README.md"
 requires-python = ">=3.12"

@@ -23,11 +23,13 @@ def import_ics(
         if not ics_path.is_file() or ics_path.suffix.lower() != ".ics":
             continue
         rich.print(f"Processing {ics_path}")
-        num_created = 0
-        num_updated = 0
 
         # parse
         cal = Calendar.from_ical(ics_path.read_text())
+
+        # create in gcal
+        num_created = 0
+        num_updated = 0
         for gcal_payload, uid in parse_ics.extract_gcal_payloads(cal):
             if existing := client.find_event_by_ics_uid(uid):
                 client.update_event(existing["id"], gcal_payload)

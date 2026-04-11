@@ -1,21 +1,25 @@
 import pathlib
 
+import cyclopts
 import rich
-import typer
 from icalendar import Calendar
 
 from ics_gcal_importer import gcal_client, parse_ics
 
-app = typer.Typer(help="Upload .ics events to Google Calendar")
+app = cyclopts.App(help="Upload .ics events to Google Calendar")
 
 
-@app.command()
+@app.default
 def import_ics(
-    ics_directory: pathlib.Path = typer.Argument(
-        default="~/Downloads", help="Path to the directory containing .ics files"
-    ),
+    ics_directory: pathlib.Path = pathlib.Path("~/Downloads"),
 ) -> None:
-    """Upload events from all found .ics files to the primary Google Calendar."""
+    """Upload events from all found .ics files to the primary Google Calendar.
+
+    Parameters
+    ----------
+    ics_directory
+        Path to the directory containing .ics files.
+    """
 
     client = gcal_client.GCalClient()
 

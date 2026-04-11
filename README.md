@@ -15,7 +15,7 @@ The following prerequisites have to be installed:
 Now you can run the CLI via
 
 ```sh
-uv import-ics
+uv ics-import
 ```
 
 ### Installation
@@ -31,7 +31,7 @@ uv tool install --editable .
 And now you can run the following command regardless of your current working directory:
 
 ```sh
-import-ics
+ics-import
 ```
 
 Please note that the path where it searches for .ics files can be overwritten if needed.

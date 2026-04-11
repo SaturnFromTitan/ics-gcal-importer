@@ -1,10 +1,6 @@
 import pathlib
 
-from typer.testing import CliRunner
-
 from ics_gcal_importer.cli import app
-
-runner = CliRunner()
 
 TEST_DATA_DIRECTORY = pathlib.Path(__file__).parent / "_data"
 
@@ -38,8 +34,7 @@ def test_bahn_2_events__created(mocker):
     )
 
     path = TEST_DATA_DIRECTORY / "test_case_1"
-    res = runner.invoke(app, [str(path)])
-    assert res.exit_code == 0, f"command failed with output: {res.output}"
+    app([str(path)], exit_on_error=False, result_action="return_value")
 
     assert mocked_gcal_client.create_event.call_args_list == [
         mocker.call(PAYLOAD1),
@@ -61,8 +56,7 @@ def test_bahn_2_events__updated(mocker):
     )
 
     path = TEST_DATA_DIRECTORY / "test_case_1"
-    res = runner.invoke(app, [str(path)])
-    assert res.exit_code == 0, f"command failed with output: {res.output}"
+    app([str(path)], exit_on_error=False, result_action="return_value")
 
     mocked_gcal_client.create_event.assert_not_called()
     assert mocked_gcal_client.update_event.call_args_list == [

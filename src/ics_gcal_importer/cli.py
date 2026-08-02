@@ -2,7 +2,6 @@ import pathlib
 
 import cyclopts
 import rich
-from icalendar import Calendar
 
 from ics_gcal_importer import gcal_client, parse_ics
 
@@ -29,7 +28,7 @@ def import_ics(
         rich.print(f"Processing {ics_path}")
 
         # parse
-        cal = Calendar.from_ical(ics_path.read_text())
+        cal = parse_ics.load_calendar(ics_path.read_text())
 
         # create in gcal
         num_created = 0

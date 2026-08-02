@@ -1,9 +1,51 @@
 import zoneinfo
 from collections.abc import Iterable
 from datetime import date, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 from icalendar import Calendar, Event, vRecur
+
+_FREQ_KEYWORDS = frozenset(
+    {"SECONDLY", "MINUTELY", "HOURLY", "DAILY", "WEEKLY", "MONTHLY", "YEARLY"}
+)
+
+
+def load_calendar(text: str) -> Calendar:
+    """Parse ICS text into a Calendar, repairing common non-standard exports.
+
+    Some calendar apps (notably older Apple iCal) emit RFC 5545 violations that
+    strict parsers reject outright. We repair the known ones first so these
+    files can still be imported.
+    """
+    return cast(Calendar, Calendar.from_ical(_repair_ics_text(text)))
+
+
+def _repair_ics_text(text: str) -> str:
+    return "\n".join(_repair_ics_line(line) for line in text.splitlines())
+
+
+def _repair_ics_line(line: str) -> str:
+    # Older Apple iCal writes VTIMEZONE RRULEs without the required FREQ= key,
+    # e.g. "RRULE:YEARLY;BYMONTH=3;BYDAY=4SU", which dateutil cannot parse.
+    if line.startswith("RRULE:"):
+        parts = line[len("RRULE:") :].split(";")
+        if parts and "=" not in parts[0] and parts[0].upper() in _FREQ_KEYWORDS:
+            parts[0] = "FREQ=" + parts[0].upper()
+            return "RRULE:" + ";".join(parts)
+        return line
+    # Older Apple iCal also drops the mandatory sign on positive UTC offsets,
+    # e.g. "TZOFFSETFROM:0100" instead of "TZOFFSETFROM:+0100" (without the
+    # sign, dateutil misreads "0200" as +20:00). Negative offsets keep their
+    # "-", so an already-signed value is left untouched and we only ever assume
+    # "+" for the unsigned (positive) case.
+    for key in ("TZOFFSETFROM:", "TZOFFSETTO:"):
+        if not line.startswith(key):
+            continue
+
+        value = line[len(key) :]
+        if value and value[0] not in "+-":
+            return f"{key}+{value}"
+    return line
 
 
 def extract_gcal_payloads(cal: Calendar) -> Iterable[tuple[dict[str, Any], str]]:
@@ -47,8 +89,15 @@ def _extract_timezone(cal: Calendar) -> zoneinfo.ZoneInfo | None:
     timezones = set()
     for component in cal.timezones:
         tzid = str(component.get("tzid", ""))
-        if tzid:
+        if not tzid:
+            continue
+        try:
             timezones.add(zoneinfo.ZoneInfo(tzid))
+        except (zoneinfo.ZoneInfoNotFoundError, ValueError):
+            # Non-IANA TZIDs (e.g. Apple's "US/CET") can't resolve here. Event
+            # datetimes already carry the offsets parsed from the VTIMEZONE
+            # component, so a global fallback zone isn't required.
+            continue
     if not timezones:
         return None
     if len(timezones) > 1:

@@ -8,5 +8,4 @@ permissions:
 
 jobs:
   ci:
-    uses: ./.github/workflows/partial-ci-checks.yml
-    secrets: inherit
+    uses: $/.github/workflows/partial-ci-checks.yml

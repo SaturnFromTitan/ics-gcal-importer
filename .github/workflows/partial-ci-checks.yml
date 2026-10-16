@@ -2,57 +2,11 @@ name: CI Checks (Reusable)
 
 on:
   workflow_call:
-    outputs:
-      version:
-        description: Version from version-check
-        value: ${{ jobs.version-check.outputs.version }}
 
 permissions:
   contents: read
 
 jobs:
-  version-check:
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.check.outputs.version }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-          fetch-tags: true
-
-      - name: Set up uv (package manager)
-        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
-        with:
-          version: "0.12.5"
-
-      - name: Version check
-        id: check
-        shell: bash
-        run: |
-          # Get current version using `uv version`
-          CURRENT_VERSION=$(uv version 2>/dev/null | cut -d ' ' -f2-)
-          echo "current version: $CURRENT_VERSION"
-
-          # Get latest tag version
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
-          LATEST_VERSION=${LATEST_TAG#v}
-          echo "latest version: $LATEST_VERSION"
-
-          # Compare versions
-          if [ "$CURRENT_VERSION" = "$LATEST_VERSION" ]; then
-            echo "::error::Version $CURRENT_VERSION already exists. Please increment the application version in pyproject.toml"
-            exit 1
-          fi
-
-          if [ "$(printf '%s\n' "$CURRENT_VERSION" "$LATEST_VERSION" | sort -V | head -n1)" = "$CURRENT_VERSION" ]; then
-            echo "::error::Version $CURRENT_VERSION is lower than the latest version $LATEST_VERSION. Please increment the application version in pyproject.toml"
-            exit 1
-          fi
-
-          echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
-
   lint:
     runs-on: ubuntu-latest
     steps:

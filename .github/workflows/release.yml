@@ -1,17 +1,21 @@
 name: Create Release
 
 on:
-  push:
-    branches: [ main ]
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   ci-checks:
     uses: $/.github/workflows/partial-ci-checks.yml
 
   release:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     needs: ci-checks
     permissions:
@@ -20,6 +24,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Set up uv (package manager)
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
@@ -27,14 +32,29 @@ jobs:
           version: "0.12.5"
           enable-cache: false
 
+      - name: Check release version
+        id: version
+        shell: bash
+        run: |
+          current_version=$(uv version --short)
+          latest_tag=$(git tag --list 'v*' --sort=-version:refname | head -n1)
+          latest_version=${latest_tag#v}
+
+          if [ -n "$latest_version" ] && [ "$(printf '%s\n' "$current_version" "$latest_version" | sort -V | head -n1)" = "$current_version" ]; then
+            echo "::error::Version $current_version must be higher than the latest release $latest_version. Increment the version in pyproject.toml before running this workflow."
+            exit 1
+          fi
+
+          echo "version=$current_version" >> "$GITHUB_OUTPUT"
+
       - name: Build extension
         run: uv build --wheel
 
       - name: Create Release # zizmor: ignore[superfluous-actions] Preserve release updates and asset replacement on reruns.
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          tag_name: v${{ needs.ci-checks.outputs.version }}
-          name: Release v${{ needs.ci-checks.outputs.version }}
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Release v${{ steps.version.outputs.version }}
           files: dist/*.whl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

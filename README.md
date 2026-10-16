@@ -35,3 +35,9 @@ ics-import
 ```
 
 Please note that the path where it searches for .ics files can be overwritten if needed.
+
+## Releases
+
+Run the **Create Release** workflow on `main` and select a version bump. The workflow checks CI, updates `pyproject.toml` and `uv.lock`, then pushes the version commit and its tag together before publishing the wheel.
+
+The release push needs a GitHub App installed on this repository with **Contents: Read and write**. Add that app to the `main` branch ruleset's bypass list with **Always allow**. Set `RELEASE_APP_CLIENT_ID` as a repository variable and `RELEASE_APP_PRIVATE_KEY` as a repository secret. The workflow uses the app token only for the protected-branch push.
